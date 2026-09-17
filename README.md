@@ -8,10 +8,10 @@ The server is plain Python with no dependencies (I used Python 3.10, but earlier
 
 ## Getting Started
 ### Server (only if others are connecting to you)
-1. **Build the binary**: If it's your first time, head to `/engine` to build the C++ `hilltops_server` binary for your system.
+1. **Build the binary**: If it's your first time, head to `engine/` to build the C++ `hilltops_server` binary for your system.
 ```sh
 # From the root of the project
-cd engine
+cd engine/
 make clean
 make
 ```
@@ -26,7 +26,7 @@ python3 server.py
 The console will print the server's host:port that others on the same network can connect to.
 
 ### Creating a client (for bot mode)
-1. See the sample clients in `sample_clients`. Only Python is tested as of this writing. If your language of choice is there, open it, update the params, and run it.
+1. See the sample clients in `sample_clients/`. Only Python is tested as of this writing. If your language of choice is there, open it, update the params, and run it.
 2. If you want another language, ask your AI model of choice to create it based on one of those samples, or create your own by hand following the structure of the sample clients
 
 #### Structure of sample clients
