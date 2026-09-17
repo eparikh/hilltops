@@ -1,0 +1,817 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <title>Hilltops Platform</title>
+    <style>
+        :root { --bg: #0f172a; --panel: #1e293b; --accent: #3b82f6; --text: #f8fafc; --muted: #94a3b8; --min-cell: #10b981; --danger: #ef4444; --warning: #f59e0b; }
+        body { margin: 0; font-family: system-ui, sans-serif; background: var(--bg); color: var(--text); }
+        .hidden { display: none !important; }
+        .container { display: flex; height: 100vh; }
+        
+        /* Creator View */
+        .creator-box { max-width: 500px; margin: 80px auto; background: var(--panel); padding: 2rem; border-radius: 8px; }
+        input, textarea, button { width: 100%; margin-top: 8px; margin-bottom: 16px; padding: 10px; border-radius: 4px; border: 1px solid #334155; background: #0f172a; color: #fff; box-sizing: border-box; }
+        button { background: var(--accent); border: none; font-weight: bold; cursor: pointer; }
+        button.btn-red { background: var(--danger) !important; color: white; }
+        
+        /* Layout Panels */
+        .panel-left { width: 180px; background: var(--panel); padding: 1rem; border-right: 1px solid #334155; overflow-y: auto; }
+        .panel-center { flex: 1; padding: 2rem; display: flex; flex-direction: column; align-items: center; overflow-y: auto; }
+        .panel-right { width: 180px; background: var(--panel); padding: 1rem; border-left: 1px solid #334155; overflow-y: auto; }
+        
+        /* Players Chip List */
+        .player-chips { display: flex; flex-wrap: wrap; gap: 6px; margin-bottom: 12px; }
+        .player-chip { background: #0f172a; padding: 4px 8px; border-radius: 4px; font-size: 0.85rem; display: inline-flex; align-items: center; gap: 4px; border: 1px solid #334155; }
+
+        /* Color Legend */
+        .color-legend { display: flex; flex-wrap: wrap; gap: 16px; justify-content: center; background: #0f172a; padding: 10px 16px; border-radius: 6px; border: 1px solid #334155; margin-bottom: 15px; font-size: 0.85rem; }
+        .legend-item { display: flex; align-items: center; gap: 6px; }
+        .legend-box { width: 16px; height: 16px; border-radius: 3px; display: inline-block; }
+        .legend-box.min-val { background: var(--accent); }
+        .legend-box.swapped { background: var(--warning); }
+        .legend-box.reachable { background: var(--min-cell); }
+        .legend-box.unreachable { background: var(--danger); }
+
+        /* Matrix Grid & Cell States */
+        .grid-board { display: grid; gap: 8px; margin: 10px 0; background: #0f172a; padding: 16px; border-radius: 8px; }
+        .cell { width: 50px; height: 50px; background: #334155; display: flex; align-items: center; justify-content: center; font-weight: bold; font-size: 1.2rem; border-radius: 4px; cursor: grab; user-select: none; transition: all 0.2s; }
+        .cell.min-val { background: var(--accent) !important; color: #fff; box-shadow: 0 0 8px var(--accent); }
+        .cell.swapped { background: var(--warning) !important; color: #000; box-shadow: 0 0 8px var(--warning); }
+        .cell.reachable { background: var(--min-cell) !important; color: #000; }
+        .cell.unreachable { background: var(--danger) !important; color: #fff; box-shadow: 0 0 8px var(--danger); }
+
+        #matrix-steps-container {
+            text-align: center; /* Ensures section headers & legends stay centered */
+        }
+
+        #matrix-steps-container > div {
+            justify-content: center !important; /* Forces all matrix flex wrappers to center cards */
+        }
+    </style>
+</head>
+<body>
+
+<div id="view-create" class="creator-box">
+    <h2>Create Hilltops Game</h2>
+    <!-- GAME MODE -->
+    <div style="margin-bottom: 1rem; width: 100%;">
+        <label style="display: block; font-weight: bold; margin-bottom: 0.5rem; text-align: left;">Game Mode:</label>
+        <div style="display: flex; gap: 10px; width: 100%;">
+            <label style="flex: 1; display: flex; align-items: center; justify-content: center; gap: 8px; padding: 10px 14px; border: 1px solid #334155; border-radius: 6px; cursor: pointer; background: #1e293b; color: #ffffff; font-size: 0.95rem;">
+                <input type="radio" name="game_mode" value="human" checked style="width: auto !important; height: auto !important; margin: 0 !important; display: inline-block !important; cursor: pointer;">
+                Humans
+            </label>
+            <label style="flex: 1; display: flex; align-items: center; justify-content: center; gap: 8px; padding: 10px 14px; border: 1px solid #334155; border-radius: 6px; cursor: pointer; background: #1e293b; color: #ffffff; font-size: 0.95rem;">
+                <input type="radio" name="game_mode" value="bot" style="width: auto !important; height: auto !important; margin: 0 !important; display: inline-block !important; cursor: pointer;">
+                Bots
+            </label>
+        </div>
+    </div>
+
+    <!-- MATRIX CREATION -->
+    <label>Custom Matrix (2D JSON or space-separated lines):</label>
+    <textarea id="inp-matrix" rows="4" placeholder="[[1, 2], [3, 4]]"></textarea>
+    <p style="text-align:center; color:var(--muted)">— OR Random Matrix —</p>
+    <div style="display:flex; gap:10px;">
+        <input id="inp-rows" type="number" placeholder="Rows (1-20)">
+        <input id="inp-cols" type="number" placeholder="Cols (1-20)">
+    </div>
+    <!-- <label>Timeout (seconds):</label>
+    <input id="inp-timeout" type="number" value="3600"> -->
+    <button onclick="createGame()">Create Game</button>
+</div>
+
+<div id="view-game" class="container hidden">
+    <!-- Left Panel: Players & Leaderboard -->
+    <div class="panel-left">
+        <h3>Players</h3>
+        <div id="player-list" class="player-chips"></div>
+        <button id="btn-end" class="btn-red hidden" onclick="endGame()">Finish game</button>
+        
+        <div id="leaderboard-area" class="hidden">
+            <hr style="border:0; border-top:1px solid #334155; margin:15px 0;">
+            <h3 style="margin-top:0;">Leaderboard</h3>
+            <h4 style="margin:5px 0; color:#10b981;">Hilltop Complete</h4>
+            <ul id="lb-ok" style="padding-left:18px; margin:5px 0; font-size:0.9rem;"></ul>
+            <h4 style="margin:10px 0 5px 0; color:#ef4444;">Incomplete</h4>
+            <ul id="lb-incomplete" style="padding-left:18px; margin:5px 0; font-size:0.9rem;"></ul>
+            <h4 style="margin:10px 0 5px 0; color:#94a3b8;">No Submission</h4>
+            <ul id="lb-no-sub" style="padding-left:18px; margin:5px 0; font-size:0.9rem;"></ul>
+        </div>
+    </div>
+    
+    <!-- Center Panel: Gameplay & Intermediate Matrices Replay -->
+    <div class="panel-center">
+        <div id="game-header-bar" style="display: flex; align-items: center; justify-content: space-between; width: 100%; margin-bottom: 1rem; flex-wrap: wrap; gap: 10px;">
+            <div style="display: flex; gap: 15px; align-items: center;">
+                <h2 id="game-title" style="margin: 0;"></h2>
+                <span id="mode-display" style="padding: 2px 8px; border-radius: 4px; background: #334155; color: #38bdf8; font-size: 0.85rem; font-weight: bold; text-transform: uppercase;"></span>
+                <h3 id="player-display" style="margin: 0; color: var(--muted); font-size: 1.1rem;"></h3>
+            </div>
+        </div>
+        
+        <div id="join-form" class="hidden">
+            <input type="text" id="inp-player-name" maxlength="20" pattern="[a-zA-Z0-9 ]+" title="1-20 alphanumeric characters only" placeholder="Enter your name">
+            <button onclick="joinGame()">Join Room</button>
+        </div>
+
+        <div id="gameplay-area" class="hidden">
+            <div id="matrix-board" class="grid-board"></div>
+            <div style="display:flex; gap:10px;">
+                <button onclick="undoSwap()">Undo Swap</button>
+                <button onclick="resetBoard()">Reset</button>
+                <button style="background:#10b981;" onclick="submitSwaps()">Submit Swaps</button>
+            </div>
+        </div>
+
+        <!-- Sequential Matrix History View (Post-Submit) -->
+        <div id="matrix-history-area" class="hidden" style="width: 100%;">
+            <h2 id="results-owner-title" style="margin: 10px 0 15px 0; color: #38bdf8;"></h2>
+            <div id="matrix-steps-container" style="display:flex; flex-direction:column; align-items:center; gap:15px; width:100%;"></div>
+        </div>
+    </div>
+
+    <!-- Right Panel: Move History -->
+    <div class="panel-right">
+        <h3>Move History</h3>
+        <ol id="move-history"></ol>
+    </div>
+</div>
+
+<script>
+let gameId = "", currentVersion = 0, initialMatrix = [], currentMatrix = [], localSwaps = [], draggedCell = null;
+let pollTimer = null;
+let pollAbortController = null;
+let latestGameState = null;
+let selectedPlayerName = null;
+
+function selectPlayerResults(targetName) {
+    selectedPlayerName = targetName;
+    const storedName = sessionStorage.getItem("pname_" + (typeof gameId !== "undefined" ? gameId : currentGameId));
+    const titleEl = document.getElementById("results-owner-title");
+    const container = document.getElementById("matrix-steps-container");
+
+    // 1. Set dynamic header text
+    if (titleEl) {
+        titleEl.innerText = (targetName === storedName) ? "My results" : `${targetName}'s results`;
+    }
+
+    if (!latestGameState || !latestGameState.players) return;
+
+    // 2. Resolve target player data safely
+    let playerData = latestGameState.players[targetName];
+    if (!playerData) {
+        const matchedKey = Object.keys(latestGameState.players).find(k => k.trim().toLowerCase() === targetName.trim().toLowerCase());
+        if (matchedKey) playerData = latestGameState.players[matchedKey];
+    }
+
+    // 3. Render analysis, error message, or "No submission" fallback
+    if (!playerData || (!playerData.submitted && !playerData.error)) {
+        container.innerHTML = `<div style="padding: 2rem; text-align: center; color: var(--muted, #94a3b8); font-size: 1.1rem;">No submission from ${targetName}</div>`;
+    } else if (playerData.error) {
+        container.innerHTML = `
+            <div style="padding: 2rem; margin-top: 1rem; border-radius: 8px; border: 1px solid var(--danger); background: rgba(239, 68, 68, 0.1); width: 100%; box-sizing: border-box;">
+                <h3 style="margin-top: 0; color: var(--danger);">Bot Execution Error</h3>
+                <pre style="text-align: left; white-space: pre-wrap; font-size: 0.95rem; color: #f8fafc; overflow-x: auto; font-family: monospace;">${playerData.error}</pre>
+            </div>
+        `;
+    } else {
+        renderMatrixHistory(playerData);
+    }
+}
+
+function resetRoomState() {
+    if (pollAbortController) {
+        pollAbortController.abort();
+        pollAbortController = null;
+    }
+    if (pollTimer) {
+        clearTimeout(pollTimer);
+        pollTimer = null;
+    }
+
+    currentVersion = 0;
+    initialMatrix = [];
+    currentMatrix = [];
+    localSwaps = [];
+    draggedCell = null;
+
+    // Clear stale header displays immediately
+    const modeEl = document.getElementById("mode-display");
+    if (modeEl) modeEl.innerText = "";
+
+    const playerDisp = document.getElementById("player-display");
+    if (playerDisp) playerDisp.innerText = "";
+
+    document.getElementById("player-list").innerHTML = "";
+    document.getElementById("move-history").innerHTML = "";
+    document.getElementById("matrix-board").innerHTML = "";
+    document.getElementById("matrix-steps-container").innerHTML = "";
+    document.getElementById("lb-ok").innerHTML = "";
+    document.getElementById("lb-incomplete").innerHTML = "";
+    document.getElementById("lb-no-sub").innerHTML = "";
+
+    document.getElementById("leaderboard-area").classList.add("hidden");
+    document.getElementById("matrix-history-area").classList.add("hidden");
+    document.getElementById("gameplay-area").classList.add("hidden");
+    document.getElementById("join-form").classList.add("hidden");
+    document.getElementById("waiting-area")?.classList.add("hidden");
+}
+
+async function createGame() {
+    const raw = document.getElementById("inp-matrix").value.trim();
+    const rows = parseInt(document.getElementById("inp-rows").value);
+    const cols = parseInt(document.getElementById("inp-cols").value);
+    const timeout = 3600; //parseInt(document.getElementById("inp-timeout").value);
+    const gameMode = document.querySelector('input[name="game_mode"]:checked').value;
+
+    let payload = { timeout: 3600, game_mode: gameMode };
+    if (raw) {
+        try {
+            payload.matrix = raw.startsWith("[") ? JSON.parse(raw) : raw.split("\n").map(r => r.trim().split(/\s+/).map(Number));
+        } catch (e) {
+            alert("Invalid matrix format. Please check your JSON or space-separated rows.");
+            return;
+        }
+    } else if (rows && cols) {
+        payload.rows = rows; payload.cols = cols;
+    }
+
+    try {
+        const res = await fetch("/api/game/create", { 
+            method: "POST", 
+            headers: { "Content-Type": "application/json" },
+            body: JSON.stringify(payload) 
+        });
+        const data = await res.json();
+
+        // Prevent routing if backend rejected matrix creation
+        if (!res.ok) {
+            alert("Error: " + (data.error || "Failed to create game"));
+            return;
+        }
+
+        sessionStorage.setItem("isHost_" + data.game_id, "true");
+        sessionStorage.setItem("mode_" + data.game_id, gameMode);
+        window.location.hash = data.game_id;
+    } catch (err) {
+        alert("Error creating game: " + err.message);
+    }
+}
+
+async function joinGame() {
+    const name = document.getElementById("inp-player-name").value.trim();
+    const nameRegex = /^[a-zA-Z0-9 ]{1,20}$/;
+
+    if (!nameRegex.test(name)) {
+        alert("Name must be 1 to 20 alphanumeric characters with no special characters.");
+        return;
+    }
+    if (!name) return alert("Enter a valid name");
+    await fetch("/api/game/join", {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ game_id: gameId, player_name: name, client_type: "human" })
+    });
+    sessionStorage.setItem("pname_" + gameId, name);
+    document.getElementById("join-form").classList.add("hidden");
+    document.getElementById("gameplay-area").classList.remove("hidden");
+    document.getElementById("player-display").innerText = `| Player: ${name}`;
+}
+
+function renderBoard() {
+    const board = document.getElementById("matrix-board");
+    if (!currentMatrix.length) return;
+    
+    board.style.gridTemplateColumns = `repeat(${currentMatrix[0].length}, 50px)`;
+    board.innerHTML = "";
+
+    let minVal = Infinity;
+    currentMatrix.forEach(r => r.forEach(v => minVal = Math.min(minVal, v)));
+
+    currentMatrix.forEach((row, r) => {
+        row.forEach((val, c) => {
+            const cell = document.createElement("div");
+            cell.className = `cell ${val === minVal ? 'min-val' : ''}`;
+            cell.innerText = val;
+            cell.draggable = true;
+            cell.ondragstart = () => draggedCell = { r, c };
+            cell.ondragover = (e) => e.preventDefault();
+            cell.ondrop = () => handleSwap(draggedCell, { r, c });
+            board.appendChild(cell);
+        });
+    });
+}
+
+function handleSwap(src, dst) {
+    if (src.r === dst.r && src.c === dst.c) return;
+    
+    const val1 = currentMatrix[src.r][src.c];
+    const val2 = currentMatrix[dst.r][dst.c];
+
+    currentMatrix[src.r][src.c] = val2;
+    currentMatrix[dst.r][dst.c] = val1;
+
+    localSwaps.push({ x1: src.r, y1: src.c, x2: dst.r, y2: dst.c, val1, val2 });
+    renderBoard();
+    updateHistory();
+}
+
+function updateHistory() {
+    const list = document.getElementById("move-history");
+    list.innerHTML = localSwaps.map(s => `<li>${s.val1} ↔ ${s.val2}</li>`).join("");
+}
+
+function undoSwap() {
+    if (!localSwaps.length) return;
+    const s = localSwaps.pop();
+    const tmp = currentMatrix[s.x1][s.y1];
+    currentMatrix[s.x1][s.y1] = currentMatrix[s.x2][s.y2];
+    currentMatrix[s.x2][s.y2] = tmp;
+    renderBoard();
+    updateHistory();
+}
+
+function resetBoard() {
+    if (confirm("Reset board to initial state?")) {
+        currentMatrix = JSON.parse(JSON.stringify(initialMatrix));
+        localSwaps = [];
+        renderBoard();
+        updateHistory();
+    }
+}
+
+async function submitSwaps() {
+    const pname = sessionStorage.getItem("pname_" + gameId);
+    const res = await fetch("/api/game/submit", {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ game_id: gameId, player_name: pname, swaps: localSwaps })
+    });
+
+    if (res.ok) {
+        document.getElementById("gameplay-area").classList.add("hidden");
+        
+        // Show waiting screen while other players finish
+        const waitingDiv = document.getElementById("waiting-area") || createWaitingBanner();
+        waitingDiv.classList.remove("hidden");
+    }
+}
+
+// Helper to construct a waiting banner if one doesn't exist in HTML
+function createWaitingBanner() {
+    let div = document.getElementById("waiting-area");
+    if (!div) {
+        div = document.createElement("div");
+        div.id = "waiting-area";
+        div.style.textAlign = "center";
+        div.style.padding = "20px";
+        div.innerHTML = `
+            <div style="padding: 2rem; text-align: center; background: #1e293b; border-radius: 8px; border: 1px solid #334155;">
+                <h3 style="margin-bottom: 8px; color: #38bdf8;">Submission Received!</h3>
+                <p style="color: var(--muted, #94a3b8); margin: 0;">Waiting for other players to submit...</p>
+            </div>
+        `;
+        document.getElementById("gameplay-area").after(div);
+    }
+    return div;
+}
+
+async function endGame() {
+    await fetch("/api/game/end", { 
+        method: "POST", 
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ game_id: gameId }) 
+    });
+}
+
+function createMatrixStepElement(titleText, matrix, swapped, isReachabilityView, reachableMap) {
+    const stepDiv = document.createElement("div");
+    stepDiv.style.textAlign = "center";
+
+    const title = document.createElement("h4");
+    title.style.margin = "0 0 6px 0";
+    title.style.color = "var(--muted)";
+    title.innerText = titleText;
+    stepDiv.appendChild(title);
+
+    const grid = document.createElement("div");
+    grid.className = "grid-board";
+    grid.style.margin = "0 auto";
+    grid.style.gridTemplateColumns = `repeat(${matrix[0].length}, 50px)`;
+
+    let minVal = Infinity;
+    matrix.forEach(r => r.forEach(v => minVal = Math.min(minVal, v)));
+
+    matrix.forEach((row, r) => {
+        row.forEach((val, c) => {
+            const cell = document.createElement("div");
+            let cls = "cell";
+
+            if (val === minVal) {
+                cls += " min-val";
+            }
+
+            if (swapped && ((r === swapped.r1 && c === swapped.c1) || (r === swapped.r2 && c === swapped.c2))) {
+                cls += " swapped";
+            }
+
+            if (isReachabilityView && reachableMap && val !== minVal) {
+                if (reachableMap[r][c]) {
+                    cls += " reachable";
+                } else {
+                    cls += " unreachable";
+                }
+            }
+
+            cell.className = cls;
+            cell.innerText = val;
+            grid.appendChild(cell);
+        });
+    });
+
+    stepDiv.appendChild(grid);
+    return stepDiv;
+}
+
+function createDistanceMatrixElement(titleText, matrix, distMap) {
+    const stepDiv = document.createElement("div");
+    stepDiv.style.textAlign = "center";
+    stepDiv.style.marginTop = "10px";
+
+    const title = document.createElement("h4");
+    title.style.margin = "0 0 6px 0";
+    title.style.color = "var(--muted)";
+    title.innerText = titleText;
+    stepDiv.appendChild(title);
+
+    const grid = document.createElement("div");
+    grid.className = "grid-board";
+    grid.style.margin = "0 auto";
+    grid.style.gridTemplateColumns = `repeat(${matrix[0].length}, 50px)`;
+
+    matrix.forEach((row, r) => {
+        row.forEach((val, c) => {
+            const cell = document.createElement("div");
+            let cls = "cell";
+            const d = distMap[r][c];
+
+            if (d === 0) {
+                cls += " min-val";
+                cell.innerText = "0";
+            } else if (d !== Infinity) {
+                cls += " reachable";
+                cell.innerText = d;
+            } else {
+                cls += " unreachable";
+                cell.innerText = "-";
+            }
+
+            cell.className = cls;
+            grid.appendChild(cell);
+        });
+    });
+
+    stepDiv.appendChild(grid);
+    return stepDiv;
+}
+
+function renderMatrixHistory(serverPlayerData) {
+    const container = document.getElementById("matrix-steps-container");
+    container.innerHTML = "";
+    document.getElementById("matrix-history-area").classList.remove("hidden");
+
+    if (!initialMatrix || !initialMatrix.length) return;
+
+    const swapsToRender = (serverPlayerData && serverPlayerData.swaps && serverPlayerData.swaps.length > 0)
+        ? serverPlayerData.swaps
+        : (typeof localSwaps !== "undefined" ? localSwaps : []);
+
+    let currM = JSON.parse(JSON.stringify(initialMatrix));
+    const steps = [{ title: "Initial Board", matrix: JSON.parse(JSON.stringify(currM)), swapped: null }];
+
+    swapsToRender.forEach((s, idx) => {
+        const val1 = currM[s.x1][s.y1];
+        const val2 = currM[s.x2][s.y2];
+        currM[s.x1][s.y1] = val2;
+        currM[s.x2][s.y2] = val1;
+
+        steps.push({
+            title: `Step ${idx + 1}: Swapped ${val1} ↔ ${val2}`,
+            matrix: JSON.parse(JSON.stringify(currM)),
+            swapped: { r1: s.x1, c1: s.y1, r2: s.x2, c2: s.y2 }
+        });
+    });
+
+    // --- SWAP SEQUENCE SECTION & SWAP LEGEND ---
+    const swapHeader = document.createElement("h3");
+    swapHeader.style.margin = "10px 0 5px 0";
+    swapHeader.innerText = "Swap Sequence";
+    container.appendChild(swapHeader);
+
+    const swapLegend = document.createElement("div");
+    swapLegend.className = "color-legend";
+    swapLegend.style.cssText = "margin-bottom: 12px; padding: 6px 12px;";
+    swapLegend.innerHTML = `
+        <div class="legend-item"><span class="legend-box min-val"></span> Target (Min Value)</div>
+        <div class="legend-item"><span class="legend-box swapped"></span> Swapped Numbers</div>
+    `;
+    container.appendChild(swapLegend);
+
+    const swapGrid = document.createElement("div");
+    swapGrid.style.cssText = "display: flex; flex-wrap: wrap; gap: 15px; justify-content: center; align-items: flex-start; margin-bottom: 25px;";
+
+    steps.forEach((step) => {
+        if (typeof createMatrixStepElement === "function") {
+            const stepDiv = createMatrixStepElement(step.title, step.matrix, step.swapped, false, null);
+            stepDiv.style.margin = "0";
+            swapGrid.appendChild(stepDiv);
+        }
+    });
+    container.appendChild(swapGrid);
+
+    // --- ANALYSIS SECTION & REACHABILITY LEGEND ---
+    const hasReachability = serverPlayerData && Array.isArray(serverPlayerData.reachability_matrix) && serverPlayerData.reachability_matrix.length > 0;
+    const hasWorstDist = serverPlayerData && Array.isArray(serverPlayerData.worst_distance_matrix) && serverPlayerData.worst_distance_matrix.length > 0;
+
+    if (hasReachability && hasWorstDist) {
+        const reachHeader = document.createElement("h3");
+        reachHeader.style.margin = "15px 0 5px 0";
+        reachHeader.innerText = "Analysis";
+        container.appendChild(reachHeader);
+
+        const analysisLegend = document.createElement("div");
+        analysisLegend.className = "color-legend";
+        analysisLegend.style.cssText = "margin-bottom: 12px; padding: 6px 12px;";
+        analysisLegend.innerHTML = `
+            <div class="legend-item"><span class="legend-box min-val"></span> Target (Min Value)</div>
+            <div class="legend-item"><span class="legend-box reachable"></span> Reachable Cell</div>
+            <div class="legend-item"><span class="legend-box unreachable"></span> Unreachable Cell</div>
+        `;
+        container.appendChild(analysisLegend);
+
+        const analysisGrid = document.createElement("div");
+        analysisGrid.style.cssText = "display: flex; flex-wrap: wrap; gap: 15px; justify-content: center; align-items: flex-start;";
+
+        const finalM = steps[steps.length - 1].matrix;
+        const reachableMap = serverPlayerData.reachability_matrix.map(row => row.map(val => val === true || val === 1));
+        const distMap = serverPlayerData.worst_distance_matrix.map(row => row.map(val => (val === -1 || val === "inf") ? Infinity : val));
+
+        if (typeof createMatrixStepElement === "function") {
+            const reachDiv = createMatrixStepElement("Reachability Status (Cell Values)", finalM, null, true, reachableMap);
+            reachDiv.style.margin = "0";
+            analysisGrid.appendChild(reachDiv);
+        }
+
+        if (typeof createDistanceMatrixElement === "function") {
+            const distDiv = createDistanceMatrixElement("Worst-Case Distance to Minimum", finalM, distMap);
+            distDiv.style.margin = "0";
+            analysisGrid.appendChild(distDiv);
+        }
+
+        container.appendChild(analysisGrid);
+    }
+}
+
+function renderLeaderboardData(data) {
+    document.getElementById("leaderboard-area")?.classList.remove("hidden");
+    document.getElementById("matrix-history-area")?.classList.remove("hidden");
+
+    const allPlayers = Object.entries(data.players || {}).map(([name, info]) => ({ name, ...info }));
+    const okNames = new Set((data.leaderboard?.ok || []).map(p => p.name));
+
+    const completedList = data.leaderboard?.ok || [];
+    const incompleteList = allPlayers.filter(p => p.submitted && !okNames.has(p.name));
+    const noSubList = allPlayers.filter(p => !p.submitted);
+
+    const renderListItems = (list, extraText = () => "") => list.length ? list.map(p => `
+        <li onclick="selectPlayerResults('${p.name}')" 
+            style="cursor: pointer; padding: 4px 8px; margin-bottom: 2px; border-radius: 4px;" 
+            onmouseover="this.style.background='#334155'" 
+            onmouseout="this.style.background='transparent'">
+            <b>${p.name}</b> ${extraText(p)}
+        </li>
+    `).join("") : `<li style="color: var(--muted); font-size: 0.85rem; padding-left: 8px;">None</li>`;
+
+    const lbOk = document.getElementById("lb-ok");
+    const lbIncomplete = document.getElementById("lb-incomplete");
+    const lbNoSub = document.getElementById("lb-no-sub");
+
+    if (lbOk) lbOk.innerHTML = renderListItems(completedList, p => `(Swaps: ${p.swaps}, Dist: ${p.max_worst})`);
+    if (lbIncomplete) lbIncomplete.innerHTML = renderListItems(incompleteList, p => p.error ? `(<span style="color:var(--danger)">Error</span>)` : `(${p.swaps?.length || 0} swaps)`);
+    if (lbNoSub) lbNoSub.innerHTML = renderListItems(noSubList);
+}
+
+async function pollState() {
+    if (!gameId) return;
+
+    pollAbortController = new AbortController();
+
+    try {
+        const res = await fetch(`/api/game/state?id=${gameId}&v=${currentVersion}`, {
+            signal: pollAbortController.signal
+        });
+
+        if (res.status === 404) {
+            alert("This game does not exist or has expired.");
+            window.location.hash = "";
+            return;
+        }
+
+        if (res.ok) {
+            const data = await res.json();
+            latestGameState = data;
+
+            // Cache game_mode for future instant page reloads
+            if (data.game_mode) {
+                sessionStorage.setItem("mode_" + gameId, data.game_mode);
+            }
+
+            // Mode Tag Header
+            const modeEl = document.getElementById("mode-display");
+            if (modeEl && data.game_mode) {
+                modeEl.innerText = `${data.game_mode} mode`;
+                modeEl.style.color = data.game_mode === "bot" ? "#f43f5e" : "#38bdf8";
+            }
+
+            currentVersion = data.version;
+            
+            if (!initialMatrix.length && data.matrix) {
+                initialMatrix = JSON.parse(JSON.stringify(data.matrix));
+                currentMatrix = JSON.parse(JSON.stringify(data.matrix));
+                renderBoard();
+            }
+
+            // Host End Button
+            const isHost = sessionStorage.getItem("isHost_" + gameId) === "true";
+            const btnEnd = document.getElementById("btn-end");
+            if (btnEnd) {
+                if (isHost && data.status !== "completed") {
+                    btnEnd.classList.remove("hidden");
+                } else {
+                    btnEnd.classList.add("hidden");
+                }
+            }
+
+            // Player List Header Chips
+            const playerListEl = document.getElementById("player-list");
+            if (playerListEl) {
+                playerListEl.innerHTML = Object.entries(data.players || {}).map(([name, p]) => 
+                    `<div class="player-chip">${p.type === 'bot' ? '🤖' : '👤'} ${name} ${p.error ? '❌' : (p.submitted ? '✅' : '⏳')}</div>`
+                ).join("");
+            }
+
+            // ==========================================
+            // 1. BOT MODE UI ROUTING
+            // ==========================================
+            if (data.game_mode === "bot") {
+                document.getElementById("join-form")?.classList.add("hidden");
+                document.getElementById("gameplay-area")?.classList.add("hidden");
+                
+                const playerDisp = document.getElementById("player-display");
+                if (playerDisp) playerDisp.innerText = "| Host / Spectator";
+
+                if (data.status === "completed" || data.expired) {
+                    document.getElementById("waiting-area")?.classList.add("hidden");
+                    renderLeaderboardData(data);
+
+                    // Show prompt if no player is selected yet, otherwise render their results
+                    if (selectedPlayerName) {
+                        selectPlayerResults(selectedPlayerName);
+                    } else {
+                        const titleEl = document.getElementById("results-owner-title");
+                        if (titleEl) titleEl.innerText = "Click user in leaderboard to view their results";
+                        document.getElementById("matrix-steps-container").innerHTML = "";
+                    }
+                } else {
+                    document.getElementById("leaderboard-area")?.classList.add("hidden");
+                    document.getElementById("matrix-history-area")?.classList.add("hidden");
+
+                    const waitingArea = document.getElementById("waiting-area") || createWaitingBanner();
+                    if (waitingArea) {
+                        waitingArea.innerHTML = `
+                            <div style="padding: 2rem; text-align: center; background: #1e293b; border-radius: 8px; border: 1px solid #334155;">
+                                <h3 style="margin-bottom: 8px; color: #f43f5e;">Bot Game in Progress</h3>
+                                <p style="color: var(--muted, #94a3b8); margin: 0;">Host must finish the game manually...</p>
+                            </div>
+                        `;
+                        waitingArea.classList.remove("hidden");
+                    }
+                }
+
+            // ==========================================
+            // 2. HUMAN MODE UI ROUTING
+            // ==========================================
+            } else {
+                const storedName = sessionStorage.getItem("pname_" + gameId);
+
+                if (data.status === "completed" || data.expired) {
+                    document.getElementById("gameplay-area")?.classList.add("hidden");
+                    document.getElementById("join-form")?.classList.add("hidden");
+                    document.getElementById("waiting-area")?.classList.add("hidden");
+
+                    renderLeaderboardData(data);
+
+                    const activeName = selectedPlayerName || storedName || Object.keys(data.players || {})[0];
+                    if (activeName) selectPlayerResults(activeName);
+
+                } else if (storedName && data.players && data.players[storedName]) {
+                    // Joined player
+                    document.getElementById("join-form")?.classList.add("hidden");
+                    document.getElementById("leaderboard-area")?.classList.add("hidden");
+                    document.getElementById("matrix-history-area")?.classList.add("hidden");
+
+                    const playerDisp = document.getElementById("player-display");
+                    if (playerDisp) playerDisp.innerText = `| Player: ${storedName}`;
+
+                    const playerInfo = data.players[storedName];
+                    if (playerInfo && playerInfo.submitted) {
+                        document.getElementById("gameplay-area")?.classList.add("hidden");
+                        const waitingArea = document.getElementById("waiting-area") || createWaitingBanner();
+                        if (waitingArea) {
+                            waitingArea.innerHTML = `
+                                <div style="padding: 2rem; text-align: center; background: #1e293b; border-radius: 8px; border: 1px solid #334155;">
+                                    <h3 style="margin-bottom: 8px; color: #38bdf8;">Submission Received!</h3>
+                                    <p style="color: var(--muted, #94a3b8); margin: 0;">Waiting for other players to submit...</p>
+                                </div>
+                            `;
+                            waitingArea.classList.remove("hidden");
+                        }
+                    } else {
+                        document.getElementById("gameplay-area")?.classList.remove("hidden");
+                        document.getElementById("waiting-area")?.classList.add("hidden");
+                    }
+                } else {
+                    // Spectator / New human player who needs to join
+                    document.getElementById("join-form")?.classList.remove("hidden");
+                    document.getElementById("gameplay-area")?.classList.add("hidden");
+                    document.getElementById("waiting-area")?.classList.add("hidden");
+                }
+            }
+
+            // Re-poll on success
+            pollTimer = setTimeout(pollState, 500);
+        }
+    } catch (err) {
+        // Silently ignore aborted fetches caused by resets/navigation
+        if (err.name === "AbortError" || pollAbortController?.signal.aborted) {
+            return;
+        }
+        console.error("Polling error:", err);
+        pollTimer = setTimeout(pollState, 1000);
+    }
+}
+
+function initView() {
+    const targetRoom = window.location.hash.substring(1);
+    
+    if (targetRoom !== gameId) {
+        resetRoomState();
+        gameId = targetRoom;
+    }
+
+    if (gameId) {
+        document.getElementById("view-create").classList.add("hidden");
+        document.getElementById("view-game").classList.remove("hidden");
+        document.getElementById("game-title").innerText = `Room: ${gameId}`;
+        
+        const savedName = sessionStorage.getItem("pname_" + gameId);
+        const savedMode = sessionStorage.getItem("mode_" + gameId);
+
+        const modeEl = document.getElementById("mode-display");
+        if (modeEl) {
+            if (savedMode) {
+                modeEl.innerText = `${savedMode} mode`;
+                modeEl.style.color = savedMode === "bot" ? "#f43f5e" : "#38bdf8";
+            } else {
+                // Fallback for new spectators before poll completes
+                modeEl.innerText = "Loading...";
+                modeEl.style.color = "var(--muted)";
+            }
+        }
+
+        document.getElementById("player-display").innerText = savedName ? `| Player: ${savedName}` : "";
+
+        // STRICT RULE: Keep join-form hidden by default when savedMode is unknown/null.
+        // pollState() will reveal it if data.game_mode is 'human' and no player name exists.
+        if (savedMode === "human" && !savedName) {
+            document.getElementById("join-form").classList.remove("hidden");
+        } else {
+            document.getElementById("join-form").classList.add("hidden");
+        }
+
+        if (!pollTimer && !pollAbortController) {
+            pollState();
+        }
+    } else {
+        document.getElementById("view-create").classList.remove("hidden");
+        document.getElementById("view-game").classList.add("hidden");
+    }
+}
+
+window.addEventListener("hashchange", initView);
+window.addEventListener("DOMContentLoaded", initView);
+</script>
+</body>
+</html>
