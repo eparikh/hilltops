@@ -7,6 +7,7 @@ import json
 import time
 import copy
 import traceback
+from multiprocessing import Pool
 
 PYTHON_WRAPPER = """
 # --- USER CODE BEGINS ---
@@ -309,14 +310,12 @@ bot_configs = [
 if __name__ == "__main__":
     # Ensure the user provided the argument to prevent an IndexError
     if len(sys.argv) > 1:
-        argument = sys.argv[1]
+        game_id = sys.argv[1]
+        base_url = "http://localhost:33333"
         bot = Bot()
-        for config in bot_configs:
-            run_bot(
-                game_id=argument,
-                base_url="http://localhost:33333",
-                bot=bot,
-                config=config,
-            )
+
+        with Pool() as pool:
+            pool.starmap(run_bot, [(game_id, base_url, bot, config) for config in bot_configs])
+
     else:
         print("Please provide a name. Usage: python3 bot_runner.py [game_id]")
