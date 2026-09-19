@@ -34,19 +34,39 @@
         .legend-box.unreachable { background: var(--danger); }
 
         /* Matrix Grid & Cell States */
-        .grid-board { display: grid; gap: 8px; margin: 10px 0; background: #0f172a; padding: 16px; border-radius: 8px; }
-        .cell { width: 50px; height: 50px; background: #334155; display: flex; align-items: center; justify-content: center; font-weight: bold; font-size: 1.2rem; border-radius: 4px; cursor: grab; user-select: none; transition: all 0.2s; }
+        .grid-board { 
+            display: grid; 
+            margin: 10px auto; 
+            background: #0f172a; 
+            border-radius: 8px; 
+            width: fit-content;
+            max-width: 100%;
+            box-sizing: border-box;
+        }
+        .cell { 
+            background: #334155; 
+            display: flex; 
+            align-items: center; 
+            justify-content: center; 
+            font-weight: bold; 
+            border-radius: 4px; 
+            cursor: grab; 
+            user-select: none; 
+            transition: all 0.2s; 
+            box-sizing: border-box;
+            color: #f8fafc;
+        }
         .cell.min-val { background: var(--accent) !important; color: #fff; box-shadow: 0 0 8px var(--accent); }
         .cell.swapped { background: var(--warning) !important; color: #000; box-shadow: 0 0 8px var(--warning); }
         .cell.reachable { background: var(--min-cell) !important; color: #000; }
         .cell.unreachable { background: var(--danger) !important; color: #fff; box-shadow: 0 0 8px var(--danger); }
 
         #matrix-steps-container {
-            text-align: center; /* Ensures section headers & legends stay centered */
+            text-align: center;
         }
 
         #matrix-steps-container > div {
-            justify-content: center !important; /* Forces all matrix flex wrappers to center cards */
+            justify-content: center !important;
         }
     </style>
 </head>
@@ -77,8 +97,6 @@
         <input id="inp-rows" type="number" placeholder="Rows (1-20)">
         <input id="inp-cols" type="number" placeholder="Cols (1-20)">
     </div>
-    <!-- <label>Timeout (seconds):</label>
-    <input id="inp-timeout" type="number" value="3600"> -->
     <button onclick="createGame()">Create Game</button>
 </div>
 
@@ -118,7 +136,7 @@
 
         <div id="gameplay-area" class="hidden">
             <div id="matrix-board" class="grid-board"></div>
-            <div style="display:flex; gap:10px;">
+            <div style="display:flex; gap:10px; justify-content:center;">
                 <button onclick="undoSwap()">Undo Swap</button>
                 <button onclick="resetBoard()">Reset</button>
                 <button style="background:#10b981;" onclick="submitSwaps()">Submit Swaps</button>
@@ -146,27 +164,42 @@ let pollAbortController = null;
 let latestGameState = null;
 let selectedPlayerName = null;
 
+function getCellSpec(rows, cols) {
+    const maxBoardDim = Math.min(window.innerWidth * 0.48, 500);
+    const gap = cols > 15 ? 3 : (cols > 10 ? 5 : 8);
+    const padding = 16;
+    
+    const availableX = maxBoardDim - padding - ((cols - 1) * gap);
+    const availableY = maxBoardDim - padding - ((rows - 1) * gap);
+    const rawSize = Math.min(availableX / cols, availableY / rows);
+    
+    const size = Math.max(16, Math.min(50, Math.floor(rawSize)));
+    let fontSize = "1.1rem";
+    if (size < 22) fontSize = "0.6rem";
+    else if (size < 30) fontSize = "0.75rem";
+    else if (size < 38) fontSize = "0.9rem";
+
+    return { size, fontSize, gap };
+}
+
 function selectPlayerResults(targetName) {
     selectedPlayerName = targetName;
     const storedName = sessionStorage.getItem("pname_" + (typeof gameId !== "undefined" ? gameId : currentGameId));
     const titleEl = document.getElementById("results-owner-title");
     const container = document.getElementById("matrix-steps-container");
 
-    // 1. Set dynamic header text
     if (titleEl) {
         titleEl.innerText = (targetName === storedName) ? "My results" : `${targetName}'s results`;
     }
 
     if (!latestGameState || !latestGameState.players) return;
 
-    // 2. Resolve target player data safely
     let playerData = latestGameState.players[targetName];
     if (!playerData) {
         const matchedKey = Object.keys(latestGameState.players).find(k => k.trim().toLowerCase() === targetName.trim().toLowerCase());
         if (matchedKey) playerData = latestGameState.players[matchedKey];
     }
 
-    // 3. Render analysis, error message, or "No submission" fallback
     if (!playerData || (!playerData.submitted && !playerData.error)) {
         container.innerHTML = `<div style="padding: 2rem; text-align: center; color: var(--muted, #94a3b8); font-size: 1.1rem;">No submission from ${targetName}</div>`;
     } else if (playerData.error) {
@@ -197,7 +230,6 @@ function resetRoomState() {
     localSwaps = [];
     draggedCell = null;
 
-    // Clear stale header displays immediately
     const modeEl = document.getElementById("mode-display");
     if (modeEl) modeEl.innerText = "";
 
@@ -223,7 +255,6 @@ async function createGame() {
     const raw = document.getElementById("inp-matrix").value.trim();
     const rows = parseInt(document.getElementById("inp-rows").value);
     const cols = parseInt(document.getElementById("inp-cols").value);
-    const timeout = 3600; //parseInt(document.getElementById("inp-timeout").value);
     const gameMode = document.querySelector('input[name="game_mode"]:checked').value;
 
     let payload = { timeout: 3600, game_mode: gameMode };
@@ -246,7 +277,6 @@ async function createGame() {
         });
         const data = await res.json();
 
-        // Prevent routing if backend rejected matrix creation
         if (!res.ok) {
             alert("Error: " + (data.error || "Failed to create game"));
             return;
@@ -284,7 +314,13 @@ function renderBoard() {
     const board = document.getElementById("matrix-board");
     if (!currentMatrix.length) return;
     
-    board.style.gridTemplateColumns = `repeat(${currentMatrix[0].length}, 50px)`;
+    const rows = currentMatrix.length;
+    const cols = currentMatrix[0].length;
+    const spec = getCellSpec(rows, cols);
+
+    board.style.gridTemplateColumns = `repeat(${cols}, ${spec.size}px)`;
+    board.style.gap = `${spec.gap}px`;
+    board.style.padding = `${Math.max(8, spec.gap * 2)}px`;
     board.innerHTML = "";
 
     let minVal = Infinity;
@@ -294,6 +330,9 @@ function renderBoard() {
         row.forEach((val, c) => {
             const cell = document.createElement("div");
             cell.className = `cell ${val === minVal ? 'min-val' : ''}`;
+            cell.style.width = `${spec.size}px`;
+            cell.style.height = `${spec.size}px`;
+            cell.style.fontSize = spec.fontSize;
             cell.innerText = val;
             cell.draggable = true;
             cell.ondragstart = () => draggedCell = { r, c };
@@ -305,7 +344,7 @@ function renderBoard() {
 }
 
 function handleSwap(src, dst) {
-    if (src.r === dst.r && src.c === dst.c) return;
+    if (!src || (src.r === dst.r && src.c === dst.c)) return;
     
     const val1 = currentMatrix[src.r][src.c];
     const val2 = currentMatrix[dst.r][dst.c];
@@ -352,14 +391,11 @@ async function submitSwaps() {
 
     if (res.ok) {
         document.getElementById("gameplay-area").classList.add("hidden");
-        
-        // Show waiting screen while other players finish
         const waitingDiv = document.getElementById("waiting-area") || createWaitingBanner();
         waitingDiv.classList.remove("hidden");
     }
 }
 
-// Helper to construct a waiting banner if one doesn't exist in HTML
 function createWaitingBanner() {
     let div = document.getElementById("waiting-area");
     if (!div) {
@@ -396,10 +432,16 @@ function createMatrixStepElement(titleText, matrix, swapped, isReachabilityView,
     title.innerText = titleText;
     stepDiv.appendChild(title);
 
+    const rows = matrix.length;
+    const cols = matrix[0].length;
+    const spec = getCellSpec(rows, cols);
+
     const grid = document.createElement("div");
     grid.className = "grid-board";
     grid.style.margin = "0 auto";
-    grid.style.gridTemplateColumns = `repeat(${matrix[0].length}, 50px)`;
+    grid.style.gap = `${spec.gap}px`;
+    grid.style.padding = `${Math.max(8, spec.gap * 2)}px`;
+    grid.style.gridTemplateColumns = `repeat(${cols}, ${spec.size}px)`;
 
     let minVal = Infinity;
     matrix.forEach(r => r.forEach(v => minVal = Math.min(minVal, v)));
@@ -409,23 +451,16 @@ function createMatrixStepElement(titleText, matrix, swapped, isReachabilityView,
             const cell = document.createElement("div");
             let cls = "cell";
 
-            if (val === minVal) {
-                cls += " min-val";
-            }
-
-            if (swapped && ((r === swapped.r1 && c === swapped.c1) || (r === swapped.r2 && c === swapped.c2))) {
-                cls += " swapped";
-            }
-
+            if (val === minVal) cls += " min-val";
+            if (swapped && ((r === swapped.r1 && c === swapped.c1) || (r === swapped.r2 && c === swapped.c2))) cls += " swapped";
             if (isReachabilityView && reachableMap && val !== minVal) {
-                if (reachableMap[r][c]) {
-                    cls += " reachable";
-                } else {
-                    cls += " unreachable";
-                }
+                cls += reachableMap[r][c] ? " reachable" : " unreachable";
             }
 
             cell.className = cls;
+            cell.style.width = `${spec.size}px`;
+            cell.style.height = `${spec.size}px`;
+            cell.style.fontSize = spec.fontSize;
             cell.innerText = val;
             grid.appendChild(cell);
         });
@@ -446,10 +481,16 @@ function createDistanceMatrixElement(titleText, matrix, distMap) {
     title.innerText = titleText;
     stepDiv.appendChild(title);
 
+    const rows = matrix.length;
+    const cols = matrix[0].length;
+    const spec = getCellSpec(rows, cols);
+
     const grid = document.createElement("div");
     grid.className = "grid-board";
     grid.style.margin = "0 auto";
-    grid.style.gridTemplateColumns = `repeat(${matrix[0].length}, 50px)`;
+    grid.style.gap = `${spec.gap}px`;
+    grid.style.padding = `${Math.max(8, spec.gap * 2)}px`;
+    grid.style.gridTemplateColumns = `repeat(${cols}, ${spec.size}px)`;
 
     matrix.forEach((row, r) => {
         row.forEach((val, c) => {
@@ -469,6 +510,9 @@ function createDistanceMatrixElement(titleText, matrix, distMap) {
             }
 
             cell.className = cls;
+            cell.style.width = `${spec.size}px`;
+            cell.style.height = `${spec.size}px`;
+            cell.style.fontSize = spec.fontSize;
             grid.appendChild(cell);
         });
     });
@@ -504,7 +548,6 @@ function renderMatrixHistory(serverPlayerData) {
         });
     });
 
-    // --- SWAP SEQUENCE SECTION & SWAP LEGEND ---
     const swapHeader = document.createElement("h3");
     swapHeader.style.margin = "10px 0 5px 0";
     swapHeader.innerText = "Swap Sequence";
@@ -531,7 +574,6 @@ function renderMatrixHistory(serverPlayerData) {
     });
     container.appendChild(swapGrid);
 
-    // --- ANALYSIS SECTION & REACHABILITY LEGEND ---
     const hasReachability = serverPlayerData && Array.isArray(serverPlayerData.reachability_matrix) && serverPlayerData.reachability_matrix.length > 0;
     const hasWorstDist = serverPlayerData && Array.isArray(serverPlayerData.worst_distance_matrix) && serverPlayerData.worst_distance_matrix.length > 0;
 
@@ -623,12 +665,10 @@ async function pollState() {
             const data = await res.json();
             latestGameState = data;
 
-            // Cache game_mode for future instant page reloads
             if (data.game_mode) {
                 sessionStorage.setItem("mode_" + gameId, data.game_mode);
             }
 
-            // Mode Tag Header
             const modeEl = document.getElementById("mode-display");
             if (modeEl && data.game_mode) {
                 modeEl.innerText = `${data.game_mode} mode`;
@@ -643,7 +683,6 @@ async function pollState() {
                 renderBoard();
             }
 
-            // Host End Button
             const isHost = sessionStorage.getItem("isHost_" + gameId) === "true";
             const btnEnd = document.getElementById("btn-end");
             if (btnEnd) {
@@ -654,7 +693,6 @@ async function pollState() {
                 }
             }
 
-            // Player List Header Chips
             const playerListEl = document.getElementById("player-list");
             if (playerListEl) {
                 playerListEl.innerHTML = Object.entries(data.players || {}).map(([name, p]) => 
@@ -662,9 +700,6 @@ async function pollState() {
                 ).join("");
             }
 
-            // ==========================================
-            // 1. BOT MODE UI ROUTING
-            // ==========================================
             if (data.game_mode === "bot") {
                 document.getElementById("join-form")?.classList.add("hidden");
                 document.getElementById("gameplay-area")?.classList.add("hidden");
@@ -676,7 +711,6 @@ async function pollState() {
                     document.getElementById("waiting-area")?.classList.add("hidden");
                     renderLeaderboardData(data);
 
-                    // Show prompt if no player is selected yet, otherwise render their results
                     if (selectedPlayerName) {
                         selectPlayerResults(selectedPlayerName);
                     } else {
@@ -700,9 +734,6 @@ async function pollState() {
                     }
                 }
 
-            // ==========================================
-            // 2. HUMAN MODE UI ROUTING
-            // ==========================================
             } else {
                 const storedName = sessionStorage.getItem("pname_" + gameId);
 
@@ -717,7 +748,6 @@ async function pollState() {
                     if (activeName) selectPlayerResults(activeName);
 
                 } else if (storedName && data.players && data.players[storedName]) {
-                    // Joined player
                     document.getElementById("join-form")?.classList.add("hidden");
                     document.getElementById("leaderboard-area")?.classList.add("hidden");
                     document.getElementById("matrix-history-area")?.classList.add("hidden");
@@ -743,18 +773,15 @@ async function pollState() {
                         document.getElementById("waiting-area")?.classList.add("hidden");
                     }
                 } else {
-                    // Spectator / New human player who needs to join
                     document.getElementById("join-form")?.classList.remove("hidden");
                     document.getElementById("gameplay-area")?.classList.add("hidden");
                     document.getElementById("waiting-area")?.classList.add("hidden");
                 }
             }
 
-            // Re-poll on success
             pollTimer = setTimeout(pollState, 500);
         }
     } catch (err) {
-        // Silently ignore aborted fetches caused by resets/navigation
         if (err.name === "AbortError" || pollAbortController?.signal.aborted) {
             return;
         }
@@ -785,7 +812,6 @@ function initView() {
                 modeEl.innerText = `${savedMode} mode`;
                 modeEl.style.color = savedMode === "bot" ? "#f43f5e" : "#38bdf8";
             } else {
-                // Fallback for new spectators before poll completes
                 modeEl.innerText = "Loading...";
                 modeEl.style.color = "var(--muted)";
             }
@@ -793,8 +819,6 @@ function initView() {
 
         document.getElementById("player-display").innerText = savedName ? `| Player: ${savedName}` : "";
 
-        // STRICT RULE: Keep join-form hidden by default when savedMode is unknown/null.
-        // pollState() will reveal it if data.game_mode is 'human' and no player name exists.
         if (savedMode === "human" && !savedName) {
             document.getElementById("join-form").classList.remove("hidden");
         } else {
