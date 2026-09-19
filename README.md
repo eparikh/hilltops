@@ -67,6 +67,8 @@ bot_configs = [
 
 3. Click button to create game. This will generate a new game url that can be joied by others in the same network.
 
+
+
 ### Human Mode
 1. Visit the game url
 2. Enter your name and join
@@ -89,8 +91,15 @@ python3 bot_runner.py game_id
 ```
 2. Wait for host to show results
 
+
+**Note:** For both human and bot, when a game is joined, your name will appear in the left panel. An icon next to your name will indicate the status of your submission.
+- ⌛ = Pending submission
+- ✅ = Submitted successfully
+- ❌ = Submitted with error (click your name on leaderboard to view error)
+
+
 ## Results
-Once the host shows the results, there will be a leaderborard showed in the left panel.
+Once the host shows the results, there will be a leaderboard showed in the left panel.
 
 * **Hilltop complete**: Users displayed in descending order by number of swaps and max distance from target
 * **Incomplete**: Users who did not achieve hilltop complete
