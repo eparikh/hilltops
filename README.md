@@ -49,6 +49,18 @@ bot_configs = [
 
 **Note:** for Julia language and any other language with list indexing that is 1-based, you should return the swap indexes in the language's standard. The bot_runner will handle converting to 0-based index for Python.
 
+**Note:** Depending on your system and language, you might need to update the command that runs your language. For example, in `bot_runner.py`,
+
+While the below worked on crunchy5, it failed on my laptop
+```sh
+cmd = ["python3", script_path]
+```
+
+so I had to change the command locally to
+```sh
+cmd = ["python", script_path]
+```
+
 ## The Game
 ### Create a new game
 1. Choose mode: Human or Bot
