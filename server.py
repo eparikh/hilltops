@@ -11,8 +11,6 @@ import subprocess
 from http.server import HTTPServer, ThreadingHTTPServer, SimpleHTTPRequestHandler
 from urllib.parse import parse_qs, urlparse, quote, unquote
 
-HOST = "0.0.0.0"
-PORT = 8080
 CPP_BINARY = "./engine/hilltops_server"
 UNAMBIGUOUS_CHARS = "23456789ABCDEFGHJKLMNPQRSTUVWXYZ"
 
@@ -399,22 +397,15 @@ class HilltopsHandler(SimpleHTTPRequestHandler):
             game.finalize_game()
             return self._send_json({"ok": True})
 
-def get_local_ip():
-    s = socket.socket(socket.AF_INET, socket.SOCK_DGRAM)
-    try:
-        s.connect(("8.8.8.8", 80))
-        ip = s.getsockname()[0]
-    except Exception:
-        ip = "localhost"
-    finally:
-        s.close()
-    return ip
 
 if __name__ == "__main__":
-    server = ThreadingHTTPServer((HOST, PORT), HilltopsHandler)
-    print(f"Hilltops Web Server running on http://{get_local_ip()}:{PORT}")
-    try:
-        server.serve_forever()
-    except KeyboardInterrupt:
-        print("\nShutting down server...")
-        server.server_close()
+    # HOST = "0.0.0.0"
+    # PORT = 8080
+    HOST = "127.0.0.1"
+    PORT = 33333
+    with ThreadingHTTPServer((HOST, PORT), HilltopsHandler) as httpd:
+        print(f"Hilltops Web Server running on http://{HOST}:{PORT}")
+        try:
+            httpd.serve_forever()
+        except KeyboardInterrupt:
+            print("\nShutting down server.")
