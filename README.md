@@ -7,7 +7,7 @@ Author: Emil Parikh
 The server is plain Python with no dependencies (I used Python 3.10, but earlier might work).
 
 ## Getting Started
-### Server (only if others are connecting to you)
+### Server
 1. **Build the binary**: If it's your first time, head to `engine/` to build the C++ `hilltops_server` binary for your system.
 ```sh
 # From the root of the project
@@ -20,74 +20,34 @@ make
 
 ```sh
 # From the root of the project
+# 
+# Note: If using using Windows Subsystem for Linux (WSL)
+# to build the C++ hilltops_server binary, this server should
+# also be started from WSL and not from a standard Windows
+# terminal.
 python3 server.py
 ```
 
-The console will print the server's host:port that others on the same network can connect to.
+The console will print the server's host:port.
 
-### Creating a client (for bot mode)
-1. See the sample clients in `sample_clients/`. Only Python is tested as of this writing. If your language of choice is there, open it, update the params, and run it.
-2. If you want another language, ask your AI model of choice to create it based on one of those samples, or create your own by hand following the structure of the sample clients
+### Creating a bot (for bot mode)
+See the sample bots in `sample_bots/`. As of this writing,
+Python, C++, C, and Julia are working. A "bot" file is realy just a function called `get_swaps` which takes a matrix and returns a list of swaps in the form of a 2D list of (r1, c1, r2, c2). In `bot_runner.py`, these functions are injected into wrappers that will call the functions.
 
-#### Structure of sample clients
-In the client, you need to write your solver function
-* Param matrix: 2D list of ints
-* Returns swaps: A list of 4-tuples (r1, c1, r2, c2) where (r1, c1) and (r2, c2) are the coordinates in the matrix of the numbers being swapped.
-
-**Caution**: If your language list indexes start with 1, confirm that matrix copy and the swaps display as expected. ***Actually, maybe that would be better as a TODO for me to take a "0 or 1 based index" param on submit so I can subtract 1 from swap indexes instead of forcing the user to track that.***
-
-1. Join the game
-```sh
-POST /api/game/join
-{
-    "game_id": game_id,
-    "player_name": player_name,
-    "client_type": "bot"
-}
-```
-
-2. Get the game state to get the matrix
-```sh
-GET /api/game/state?id={game_id}&v=0
-{
-    "game_id": game_id,
-    "player_name": player_name,
-    "client_type": "bot"
-}
-```
-
-3. Deep copy the matrix so that you still have the original state
-
-4. Run your solver function (takes a matrix, returns swaps) and save to a variable
-
-5. Format the swaps and submit
-```sh
-POST /api/game/submit
-{
-    "game_id": game_id,
-    "player_name": player_name,
-    "swaps": [
-        {
-            "x1": r1, "y1": c1, 
-            "x2": r2, "y2": c2, 
-            "val1": val1, "val2": val2
-        },
-        ...,
-        ...,
-    ]
-}
-```
-
-Steps 4-6 should be wrapped in exception handling, and in the exception block, you should still submit; however, instead of submitting swaps, submit the error message to whatever level of detail you'd like. Anything from the stack trace to a generic error message. e.g.,
+To make sure your bot is recognized, add it to `bot_configs` in `bot_runner.py`.
 
 ```sh
-POST /api/game/submit
-{
-    "game_id": game_id,
-    "player_name": player_name,
-    "error": traceback.format_exc(),
-}
+bot_configs = [
+    BotConfig(name="PythonBot", file_path="sample_bots/bot.py", language=Language.PYTHON),
+    BotConfig(name="JuliaBot", file_path="sample_bots/bot.jl", language=Language.JULIA),
+    BotConfig(name="CBot", file_path="sample_bots/bot.c", language=Language.C),
+    BotConfig(name="CppBot", file_path="sample_bots/bot.cpp", language=Language.CPP),
+]
 ```
+
+**Note:** I was testing this out on crunchy5.cims.nyu.edu where all these languages are installed. When testing locally, you might want to comment out any bots for languages you don't have installed, though not strictly necessary since I gracefully handle + display the errors in the frontend.
+
+**Note:** for Julia language and any other language with list indexing that is 1-based, you should return the swap indexes in the language's standard. The bot_runner will handle converting to 0-based index for Python.
 
 ## The Game
 ### Create a new game
@@ -116,9 +76,18 @@ POST /api/game/submit
 
 
 ### Bot Mode
-1. In your client, set the game_id, player_name, solve_func, and base_url.
-2. Run your client (on run, the client should join the game, calculate swaps, and submit)
-3. Wait for host to show results
+1. After you've written your `get_swaps` function and added it to the list of `bot_configs` in `bot_runner.py`
+```sh
+# From the root of the project
+# The script will loop through all of the bots, and for each it will
+#  - join the game,
+#  - retrieve the matrix from the server,
+#  - submit the swaps.
+# Note, if the url is http://localhost:33333/#BN72UN,
+# the game id is BN72UN.
+python3 bot_runner.py game_id
+```
+2. Wait for host to show results
 
 ## Results
 Once the host shows the results, there will be a leaderborard showed in the left panel.
